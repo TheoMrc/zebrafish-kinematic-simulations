@@ -1,10 +1,12 @@
 from __future__ import annotations
-
 import os
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import List, Tuple, Set, Dict, Union
 from itertools import product
+from scipy.ndimage.interpolation import rotate
+import sys
+sys.setrecursionlimit(512*416)
 
 
 Coordinate = Tuple[int, int]
@@ -45,18 +47,22 @@ class Video:
 
 
 class Frame:
-    def __init__(self, frame_n: int, frame_path: str):
+    def __init__(self, frame_n: int, frame_path: str, head_up: True):
         self.frame_n = frame_n
         self.path = frame_path
         self.raw_frame = plt.imread(frame_path)
+        if not head_up:
+            self.raw_frame = np.flipud(self.raw_frame)
         self.frame = Frame.rgb2gray(Frame.hist_adjust(self.raw_frame))
         self.shape = self.frame.shape
-        self.boolean_frame = Frame.threshold(self.frame, thresh=190)
+        self.boolean_frame = Frame.threshold(self.frame, thresh=200)
         self.fish_zone = Frame.get_fish_zone(self.boolean_frame)
-        self.centered_bool_frame = Frame.create_fish_centered_frame(self.fish_zone, half_size=150)
+        self.centered_bool_frame, self.mass_center = Frame.create_fish_centered_frame(self.fish_zone, half_size=150)
+        self.angle_to_vertical = self.calculate_rotation_angle()
+        self.rotated_bool_frame, self.fish_zone = self.rotate_and_center_frame()
 
     @classmethod
-    def hist_adjust(cls, frame: np.array, gamma=1):
+    def hist_adjust(cls, frame: np.array, gamma: float = 1):
         x, a, b, c, d = frame, frame.min(), frame.max(), 0, 1
         y = (((x - a) / (b - a)) ** gamma) * (d - c) + c
         return y
@@ -66,7 +72,7 @@ class Frame:
         return np.dot(frame[..., :3], [0.2989, 0.5870, 0.1140])
 
     @classmethod
-    def threshold(cls, frame: np.array, thresh: int = 190):
+    def threshold(cls, frame: np.array, thresh: int = 200):
         return frame < thresh / 255
 
     @classmethod
@@ -76,14 +82,33 @@ class Frame:
         return fish_zone
 
     @classmethod
-    def create_fish_centered_frame(cls, fish_zone, half_size: int = 150):
+    def create_fish_centered_frame(cls, fish_zone: List[Tuple], half_size: int = 150) -> Tuple[np.array, Tuple]:
         x_list = [x for x, y in fish_zone]
         y_list = [y for x, y in fish_zone]
-        mass_center = (np.mean(x_list), np.mean(y_list))
-        bool_frame_center = np.zeros([2 * half_size, 2 * half_size])
+        mass_center = (np.mean(x_list).round(), np.mean(y_list).round())
+        centered_bool_frame = np.zeros([2 * half_size, 2 * half_size])
         zone_arr = np.array(fish_zone) - np.array(mass_center).astype(int) + np.array((half_size, half_size))
-        bool_frame_center[tuple(zone_arr.T)] = 1
-        return bool_frame_center
+        centered_bool_frame[tuple(zone_arr.T)] = 1
+        return centered_bool_frame, mass_center
+
+    def calculate_rotation_angle(self):
+        norm_fish_zone = np.array(self.fish_zone) - np.array(self.mass_center).astype(int)
+        # for every n point in fish, calculate angle between the (n, mass_center) straight line and the vertical line
+        angles = np.arctan2(norm_fish_zone.T[0], norm_fish_zone.T[1])
+
+        dist_list = list()
+        for pixel in norm_fish_zone:
+            dist_list.append(np.linalg.norm(pixel))
+        dist_arr = np.array(dist_list)
+        weighted_angles = dist_arr * angles / dist_arr.sum() * 180 / np.pi
+
+        return sum(weighted_angles)
+
+    def rotate_and_center_frame(self) -> Tuple[np.array, List[Tuple]]:
+        rotated_frame = rotate(self.centered_bool_frame, np.sum(self.angle_to_vertical), reshape=False).round().astype(int)
+        fish_zone = Frame.get_fish_zone(rotated_frame)
+        rotated_frame, _ = Frame.create_fish_centered_frame(fish_zone, half_size=150)
+        return rotated_frame, fish_zone
 
     def plot_frame(self):
         fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(8, 7))
@@ -101,6 +126,12 @@ class Frame:
 
         for a in ax:
             a.axis('off')
+        plt.show()
+
+        plt.figure(figsize=(6, 6))
+        plt.imshow(self.rotated_bool_frame)
+        plt.grid()
+        plt.title('Rotated frame', )
         plt.show()
 
 

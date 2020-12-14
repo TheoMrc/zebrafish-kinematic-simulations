@@ -18,5 +18,5 @@ def test_load_frames_paths(test_dir_path):
 def test_init_and_plot_frame(test_dir_path):
     first_frame_path = os.path.join(test_dir_path, 'test_experiment', 'test_video',
                                     'jpg_folder', 'film18_10000_40cm000001.jpg')
-    first_frame = Frame(1, first_frame_path)
+    first_frame = Frame(1, first_frame_path, head_up=False)
     first_frame.plot_frame()
