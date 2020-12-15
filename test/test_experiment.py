@@ -15,8 +15,15 @@ def test_load_frames_paths(test_dir_path):
     assert len(frames_paths) == 696
 
 
-def test_init_and_plot_frame(test_dir_path):
+def test_init_frame(test_dir_path):
     first_frame_path = os.path.join(test_dir_path, 'test_experiment', 'test_video',
                                     'jpg_folder', 'film18_10000_40cm000001.jpg')
-    first_frame = Frame(1, first_frame_path, head_up=False)
-    first_frame.plot_frame()
+
+    frame = Frame(1, first_frame_path, head_up=False)
+    frames = [frame]
+
+
+def test_init_video(test_dir_path):
+    pass
+    ...
+    # Video.process_frames(frames)
