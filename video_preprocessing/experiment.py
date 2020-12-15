@@ -80,6 +80,8 @@ class Frame:
             self.raw_frame = np.flipud(self.raw_frame)
         # self.frame = Frame.rgb2gray(Frame.hist_adjust(self.raw_frame))
         self.frame = Frame.rgb2gray(Frame.hist_adjust(Frame.image_standardisation(self.raw_frame)))
+        # self.frame = Frame.rgb2gray(Frame.image_standardisation(self.raw_frame))
+        self.frame_mean = self.frame.mean()
 
         self.shape = self.frame.shape
         self.boolean_frame = np.array([])
@@ -98,7 +100,6 @@ class Frame:
     @classmethod
     def image_standardisation(cls, frame):
         return frame-np.array([np.mean(frame)])/np.array([np.std(frame)])
-
 
     @classmethod
     def rgb2gray(cls, frame: np.array):
@@ -138,11 +139,11 @@ class Frame:
         return sum(weighted_angles)
 
     def rotate_and_center_frame(self) -> Tuple[np.array, List[Tuple]]:
-        # rotated_frame = rotate(self.centered_bool_frame, np.sum(self.angle_to_vertical),
-        #                        reshape=False).round().astype(int)
+        rotated_frame = rotate(self.centered_bool_frame, self.angle_to_vertical,
+                               reshape=False).round().astype(int)
 
-        rotated_frame = rotate(self.centered_bool_frame, np.sum(self.angle_to_vertical),
-                               reshape=False) > 0.05
+        # rotated_frame = rotate(self.centered_bool_frame, self.angle_to_vertical,
+        #                        reshape=False) > 0.05
         fish_zone = Frame.get_fish_zone(rotated_frame)
         rotated_frame, _ = Frame.create_fish_centered_frame(fish_zone, half_size=150)
         return rotated_frame, fish_zone
