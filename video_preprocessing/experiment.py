@@ -1,6 +1,5 @@
 from __future__ import annotations
 import sys
-
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,10 +7,7 @@ from typing import List, Tuple, Set, Optional
 from itertools import product
 from scipy.ndimage.interpolation import rotate
 from tqdm import tqdm
-
-sys.setrecursionlimit(512*416)
-
-# Coordinate = Tuple[int, int]
+sys.setrecursionlimit(512*416*2)
 
 
 def get_zones(bool_array: np.array) -> List[Set[Tuple[int, int]]]:
@@ -61,12 +57,15 @@ class Video:
     @classmethod
     def process_frames(cls, frames: List[Frame]):
         for frame in tqdm(frames, total=len(frames), desc="Image processing "):
-            frame.boolean_frame = Frame.threshold(frame.frame, thresh=200)
+            frame.boolean_frame = Frame.threshold(frame.frame, thresh=np.median(frame.frame)/1.5)
             frame.fish_zone = Frame.get_fish_zone(frame.boolean_frame)
+            
             frame.centered_bool_frame, frame.mass_center = Frame.create_fish_centered_frame(frame.fish_zone,
                                                                                             half_size=150)
             frame.angle_to_vertical = frame.calculate_rotation_angle()
             frame.rotated_bool_frame, frame.fish_zone = frame.rotate_and_center_frame()
+            print(f'\n surf = {len(frame.fish_zone)}, angle = {frame.angle_to_vertical}')
+
             frame.plot_frame_processing()
             frame.plot_final_frame()
 
@@ -78,11 +77,7 @@ class Frame:
         self.raw_frame = plt.imread(frame_path)
         if not head_up:
             self.raw_frame = np.flipud(self.raw_frame)
-        # self.frame = Frame.rgb2gray(Frame.hist_adjust(self.raw_frame))
-        self.frame = Frame.rgb2gray(Frame.hist_adjust(Frame.image_standardisation(self.raw_frame)))
-        # self.frame = Frame.rgb2gray(Frame.image_standardisation(self.raw_frame))
-        self.frame_mean = self.frame.mean()
-
+        self.frame = Frame.image_standardisation(Frame.rgb2gray(self.raw_frame))
         self.shape = self.frame.shape
         self.boolean_frame = np.array([])
         self.centered_bool_frame = np.array([])
