@@ -57,14 +57,14 @@ class Video:
     @classmethod
     def process_frames(cls, frames: List[Frame]):
         for frame in tqdm(frames, total=len(frames), desc="Image processing "):
-            frame.boolean_frame = Frame.threshold(frame.frame, thresh=np.median(frame.frame)/1.5)
+            frame.boolean_frame = frame.frame < np.quantile(frame.frame, 0.007)
+
             frame.fish_zone = Frame.get_fish_zone(frame.boolean_frame)
             
             frame.centered_bool_frame, frame.mass_center = Frame.create_fish_centered_frame(frame.fish_zone,
                                                                                             half_size=150)
             frame.angle_to_vertical = frame.calculate_rotation_angle()
             frame.rotated_bool_frame, frame.fish_zone = frame.rotate_and_center_frame()
-            print(f'\n surf = {len(frame.fish_zone)}, angle = {frame.angle_to_vertical}')
 
             frame.plot_frame_processing()
             frame.plot_final_frame()
@@ -82,7 +82,7 @@ class Frame:
         self.boolean_frame = np.array([])
         self.centered_bool_frame = np.array([])
         self.rotated_bool_frame = np.array([])
-        self.fish_zone = list()
+        self.fish_zone = set()
         self.mass_center = tuple()
         self.angle_to_vertical = float()
 
@@ -99,10 +99,6 @@ class Frame:
     @classmethod
     def rgb2gray(cls, frame: np.array):
         return np.dot(frame[..., :3], [0.2989, 0.5870, 0.1140])
-
-    @classmethod
-    def threshold(cls, frame: np.array, thresh: int = 200):
-        return frame < thresh
 
     @classmethod
     def get_fish_zone(cls, boolean_frame: np.array) -> List[Tuple]:
@@ -165,5 +161,5 @@ class Frame:
         plt.figure(figsize=(6, 6))
         plt.imshow(self.rotated_bool_frame)
         plt.grid()
-        plt.title(f'Rotated frame {self.frame_n}')
+        plt.title(f'Rotated frame {self.frame_n} \n surf = {len(self.fish_zone)}, angle = {self.angle_to_vertical}')
         plt.show()
