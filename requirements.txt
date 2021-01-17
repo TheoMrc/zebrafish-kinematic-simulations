@@ -3,3 +3,5 @@ matplotlib
 numpy==1.19.3
 scipy
 tqdm
+opencv-python
+PyQt5
