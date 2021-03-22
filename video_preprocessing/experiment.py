@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from typing import List, Tuple, Set, Optional
 from itertools import product
 from scipy.ndimage.interpolation import rotate
+from scipy.signal import convolve2d
 from tqdm import tqdm
 from video_preprocessing.utils import fish_k_means
 import cv2
@@ -58,19 +59,30 @@ class Video:
 
     @classmethod
     def process_frames(cls, frames: List[Frame]):
+
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+
         for frame in tqdm(frames, total=len(frames), desc="Image processing "):
             # frame.boolean_frame = frame.frame < np.quantile(frame.frame, 0.007)
 
-            frame.clipped_frame = np.clip(frame.frame, 140, 220)  # instead of 140, 210 for Guillaume
+            frame.clipped_frame = np.clip(frame.frame, 140, np.median(frame.frame) - 15)  # instead of 140, 210 for Guillaume
+            print(np.median(frame.frame) - 15)
             frame.boolean_frame = fish_k_means(frame.clipped_frame)
             frame.fish_zone = Frame.get_fish_zone(frame.boolean_frame)
             # frame.fish_zone = refine_fish_zone(frame.frame, frame.fish_zone)
             frame.centered_bool_frame, frame.mass_center = Frame.create_fish_centered_frame(frame.fish_zone,
                                                                                             half_size=150)
+            frame.centered_bool_frame = cv2.morphologyEx(frame.centered_bool_frame, cv2.MORPH_CLOSE, kernel)
+
             frame.angle_to_vertical = frame.calculate_rotation_angle()
             frame.rotated_bool_frame, frame.fish_zone = frame.rotate_and_center_frame()
-            frame.rotated_bool_frame = cv2.erode(frame.rotated_bool_frame, np.ones((2, 2), np.uint8))
-            frame.rotated_bool_frame = cv2.dilate(frame.rotated_bool_frame, np.ones((2, 2), np.uint8))
+            frame.rotated_bool_frame = cv2.morphologyEx(frame.rotated_bool_frame, cv2.MORPH_CLOSE, kernel)
+            for n in range(2):
+                counts = convolve2d(frame.rotated_bool_frame, np.ones((3, 3)), mode='same')
+                frame.rotated_bool_frame[counts >= 4] = 1
+            # print(np.sum(frame.centered_bool_frame), np.sum(frame.rotated_bool_frame))
+            # frame.rotated_bool_frame = cv2.erode(frame.rotated_bool_frame, np.ones((2, 2), np.uint8))
+            # frame.rotated_bool_frame = cv2.dilate(frame.rotated_bool_frame, np.ones((2, 2), np.uint8))
             frame.plot_frame_processing()
             frame.plot_final_frame()
 
@@ -82,7 +94,9 @@ class Frame:
         self.raw_frame = plt.imread(frame_path)
         if not head_up:
             self.raw_frame = np.flipud(self.raw_frame)
-        self.frame = Frame.hist_adjust(Frame.image_standardisation(Frame.rgb2gray(self.raw_frame)))
+        # self.frame = Frame.hist_adjust(Frame.image_standardisation(Frame.rgb2gray(self.raw_frame)))
+        self.frame = Frame.hist_adjust(Frame.rgb2gray(self.raw_frame))
+
         self.shape = self.frame.shape
         self.clipped_frame = np.array([])
 
@@ -96,6 +110,7 @@ class Frame:
     @classmethod
     def hist_adjust(cls, frame: np.array, gamma: float = 1):
         x, a, b, c, d = frame, frame.min(), frame.max(), 0, 255
+
         y = (((x - a) / (b - a)) ** gamma) * (d - c) + c
         return y
 
@@ -115,12 +130,12 @@ class Frame:
 
     @classmethod
     def create_fish_centered_frame(cls, fish_zone: Set[Tuple[int, int]],
-                                   half_size: int = 150) -> Tuple[np.array, Tuple]:
+                                   half_size: int = 150, shift: Tuple = (0, 0)) -> Tuple[np.array, Tuple]:
         x_list = [x for x, y in fish_zone]
         y_list = [y for x, y in fish_zone]
         mass_center = (np.mean(x_list).round(), np.mean(y_list).round())
         centered_bool_frame = np.zeros([2 * half_size, 2 * half_size])
-        zone_arr = np.array(list(fish_zone)) - np.array(mass_center).astype(int) + np.array((half_size, half_size))
+        zone_arr = np.array(list(fish_zone)) - np.array(mass_center).astype(int) + np.array((half_size, half_size)) + shift
         centered_bool_frame[tuple(zone_arr.T)] = 1
         return centered_bool_frame, mass_center
 
@@ -141,10 +156,8 @@ class Frame:
         rotated_frame = rotate(self.centered_bool_frame, self.angle_to_vertical,
                                reshape=False).round().astype(int)
 
-        # rotated_frame = rotate(self.centered_bool_frame, self.angle_to_vertical,
-        #                        reshape=False) > 0.05
         fish_zone = Frame.get_fish_zone(rotated_frame)
-        rotated_frame, _ = Frame.create_fish_centered_frame(fish_zone, half_size=150)
+        rotated_frame, _ = Frame.create_fish_centered_frame(fish_zone, half_size=100, shift=(-20, 0))
         return rotated_frame, fish_zone
 
     def plot_frame_processing(self):
@@ -168,12 +181,11 @@ class Frame:
     def plot_final_frame(self):
         plt.figure('final frame', figsize=(6, 6))
         plt.imshow(self.rotated_bool_frame)
+        plt.contour(self.rotated_bool_frame, linewidths=.8)
         plt.grid()
-        plt.title(f'Rotated frame {self.frame_n} \n surf = {len(self.fish_zone)}, angle = {self.angle_to_vertical}')
+        plt.title(f'Rotated frame {self.frame_n} \n surf_before = {len(self.fish_zone)} '
+                  f'; surf_after = {np.sum(self.rotated_bool_frame)}\n, angle = {self.angle_to_vertical}')
         plt.show()
-
-
-
 
 
 def refine_fish_zone(frame: np.array, fish_zone: Set[Tuple[int, int]]) -> Set[Tuple[int, int]]:
@@ -183,7 +195,9 @@ def refine_fish_zone(frame: np.array, fish_zone: Set[Tuple[int, int]]) -> Set[Tu
 
 
 def add_to_fish_zone(x: int, y: int, fish_zone: Set[Tuple[int, int]], frame: np.array) -> None:
-    for offset_x, offset_y in zip([1, -1, 0, 0], [0, 0, 1, -1]):
+    offsets = zip([1, -1, 0, 0, 1, 1, -1, -1], [0, 0, 1, -1, 1, -1, 1, -1])
+
+    for offset_x, offset_y in offsets:
         if (x + offset_x, y + offset_y) in fish_zone:
             pass
         elif (0 <= x + offset_x < frame.shape[0] and 0 <= y + offset_y < frame.shape[1]
@@ -192,3 +206,4 @@ def add_to_fish_zone(x: int, y: int, fish_zone: Set[Tuple[int, int]], frame: np.
               and (x + offset_x, y + offset_y) not in fish_zone):
             fish_zone.add((x + offset_x, y + offset_y))
             add_to_fish_zone(x + offset_x, y + offset_y, fish_zone, frame)
+

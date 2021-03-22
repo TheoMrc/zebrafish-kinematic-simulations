@@ -1,7 +1,6 @@
 pytest
 matplotlib
-numpy==1.19.3
+numpy
 scipy
 tqdm
 opencv-python
-PyQt5
