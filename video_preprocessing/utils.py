@@ -1,6 +1,14 @@
 import numpy as np
 
 
+def rotate_coords(x, y, theta, ox, oy):
+    """Rotate arrays of coordinates x and y by theta radians about the
+    point (ox, oy)."""
+    sin, cos = np.sin(theta), np.cos(theta)
+    x, y = np.asarray(x) - ox, np.asarray(y) - oy
+    return x * cos - y * sin + ox, x * sin + y * cos + oy
+
+
 def fish_k_means(clipped_array: np.array) -> np.array:
     # Flatten array to allow k means calculation
     flat_array = clipped_array.reshape(clipped_array.shape[0] * clipped_array.shape[1]).reshape(-1, 1)

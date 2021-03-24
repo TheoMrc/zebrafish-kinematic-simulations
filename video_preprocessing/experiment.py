@@ -5,10 +5,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from typing import List, Tuple, Set, Optional
 from itertools import product
-from scipy.ndimage.interpolation import rotate
 from scipy.signal import convolve2d
 from tqdm import tqdm
-from video_preprocessing.utils import fish_k_means
+from video_preprocessing.utils import fish_k_means, rotate_coords
 import cv2
 sys.setrecursionlimit(512*416*2)
 
@@ -65,10 +64,11 @@ class Video:
         for frame in tqdm(frames, total=len(frames), desc="Image processing "):
             # frame.boolean_frame = frame.frame < np.quantile(frame.frame, 0.007)
 
-            frame.clipped_frame = np.clip(frame.frame, 140, np.median(frame.frame) - 15)  # instead of 140, 210 for Guillaume
-            print(np.median(frame.frame) - 15)
+            # frame.clipped_frame = np.clip(frame.frame, 140, np.median(frame.frame) - 10)  # instead of 140, 210 for Guillaume
+            frame.clipped_frame = np.clip(frame.frame, 140, 210)  # instead of 140, 210 for Guillaume
+
             frame.boolean_frame = fish_k_means(frame.clipped_frame)
-            frame.fish_zone = Frame.get_fish_zone(frame.boolean_frame)
+            frame.fish_zone = np.array(list(Frame.get_fish_zone(frame.boolean_frame)))
             # frame.fish_zone = refine_fish_zone(frame.frame, frame.fish_zone)
             frame.centered_bool_frame, frame.mass_center = Frame.create_fish_centered_frame(frame.fish_zone,
                                                                                             half_size=150)
@@ -94,8 +94,8 @@ class Frame:
         self.raw_frame = plt.imread(frame_path)
         if not head_up:
             self.raw_frame = np.flipud(self.raw_frame)
-        # self.frame = Frame.hist_adjust(Frame.image_standardisation(Frame.rgb2gray(self.raw_frame)))
-        self.frame = Frame.hist_adjust(Frame.rgb2gray(self.raw_frame))
+        # self.frame = Frame.hist_adjust(Frame.image_standardisation(self.raw_frame))
+        self.frame = Frame.hist_adjust(self.raw_frame)
 
         self.shape = self.frame.shape
         self.clipped_frame = np.array([])
@@ -129,13 +129,12 @@ class Frame:
         return fish_zone
 
     @classmethod
-    def create_fish_centered_frame(cls, fish_zone: Set[Tuple[int, int]],
+    def create_fish_centered_frame(cls, fish_zone: np.ndarray[Tuple[int, int]],
                                    half_size: int = 150, shift: Tuple = (0, 0)) -> Tuple[np.array, Tuple]:
-        x_list = [x for x, y in fish_zone]
-        y_list = [y for x, y in fish_zone]
-        mass_center = (np.mean(x_list).round(), np.mean(y_list).round())
+
+        mass_center = np.mean(fish_zone.T[0]).round(), np.mean(fish_zone.T[1]).round()
         centered_bool_frame = np.zeros([2 * half_size, 2 * half_size])
-        zone_arr = np.array(list(fish_zone)) - np.array(mass_center).astype(int) + np.array((half_size, half_size)) + shift
+        zone_arr = fish_zone - np.array(mass_center).astype(int) + np.array((half_size, half_size)) + shift
         centered_bool_frame[tuple(zone_arr.T)] = 1
         return centered_bool_frame, mass_center
 
@@ -153,12 +152,15 @@ class Frame:
         return sum(weighted_angles)
 
     def rotate_and_center_frame(self) -> Tuple[np.array, Set[Tuple[int, int]]]:
-        rotated_frame = rotate(self.centered_bool_frame, self.angle_to_vertical,
-                               reshape=False).round().astype(int)
 
-        fish_zone = Frame.get_fish_zone(rotated_frame)
-        rotated_frame, _ = Frame.create_fish_centered_frame(fish_zone, half_size=100, shift=(-20, 0))
-        return rotated_frame, fish_zone
+        normalized_zone = np.array(list(self.fish_zone)) - np.array(self.mass_center).astype(int)
+        rotated_zone = np.array(rotate_coords(normalized_zone.T[0], normalized_zone.T[1],
+                                              self.angle_to_vertical * np.pi / 180,
+                                              0, 0)).T.astype(int) + np.array(self.mass_center).astype(int)
+
+        rotated_frame, _ = Frame.create_fish_centered_frame(rotated_zone, half_size=100, shift=(-20, 0))
+
+        return rotated_frame, rotated_zone
 
     def plot_frame_processing(self):
         fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(8, 7))
