@@ -63,23 +63,43 @@ class Video:
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
 
         for frame in tqdm(frames, total=len(frames), desc="Image processing "):
-            # frame.clipped_frame = np.clip(frame.frame, 140/257, 210/257)  # instead of 140, 210 for Guillaume
+            frame.clipped_frame = np.clip(frame.frame, 140/257, 210/257)  # instead of 140, 210 for Guillaume
 
-            frame.boolean_frame = frame.frame < np.quantile(frame.frame, .01)
+            frame.boolean_frame = frame.frame <= np.quantile(frame.frame, .01)
             # frame.boolean_frame = frame.frame <= 140
 
             frame.fish_zone = np.array(list(Frame.get_fish_zone(frame.boolean_frame)))
+
+            raw_fish_image = np.zeros([416, 512])
+            raw_fish_image[tuple(frame.fish_zone.T)] = 1
+            closed_fish_image = cv2.morphologyEx(raw_fish_image, cv2.MORPH_CLOSE, kernel)
+
+
+            frame.fish_zone = np.argwhere(closed_fish_image == 1)
+
             frame.centered_bool_frame, frame.mass_center = Frame.create_fish_centered_frame(frame.fish_zone,
                                                                                             half_size=150)
-            frame.centered_bool_frame = cv2.morphologyEx(frame.centered_bool_frame, cv2.MORPH_CLOSE, kernel)
 
             if frame.frame_n > 0:
+                frame.centered_bool_frame = cv2.morphologyEx(frame.centered_bool_frame, cv2.MORPH_CLOSE, kernel)
                 frame.centered_bool_frame, frame.fish_zone = frame.rotate_and_center_frame(
                     frames[frame.frame_n - 1].angle_to_vertical)
-                frame.centered_bool_frame = cv2.morphologyEx(frame.centered_bool_frame, cv2.MORPH_CLOSE, kernel)
 
-            frame.angle_to_vertical = frame.calculate_rotation_angle(frame.fish_zone, frame.mass_center)
+                frame.centered_bool_frame = cv2.morphologyEx(frame.centered_bool_frame, cv2.MORPH_CLOSE, kernel)
+                frame.fish_zone = np.argwhere(frame.centered_bool_frame == 1)
+
+            frame.angle_to_vertical = frame.calculate_rotation_angle(frame.fish_zone,
+                                                                     (np.mean(frame.fish_zone.T[0]),
+                                                                      np.mean(frame.fish_zone.T[1])))
+
             frame.rotated_bool_frame, frame.fish_zone = frame.rotate_and_center_frame(frame.angle_to_vertical)
+
+            if frame.frame_n > 0:
+                frame.rotated_bool_frame = cv2.morphologyEx(frame.rotated_bool_frame, cv2.MORPH_CLOSE, kernel)
+
+            for n in range(2):
+                counts = convolve2d(frame.rotated_bool_frame, np.ones((3, 3)), mode='same')
+                frame.rotated_bool_frame[counts >= 4] = 1
 
             if frame.frame_n > 0:
                 frame.angle_to_vertical += frames[frame.frame_n - 1].angle_to_vertical
@@ -135,21 +155,14 @@ class Frame:
         return fish_zone
 
     @classmethod
-    def create_fish_centered_frame(cls, fish_zone: np.ndarray[Tuple[int, int]],
-                                   half_size: int = 150, shift: Tuple = (0, 0), stop: bool = False) -> Tuple[np.array, Tuple]:
+    def create_fish_centered_frame(cls, fish_zone: np.ndarray,
+                                   half_size: int = 150, shift: Tuple = (0, 0)) -> Tuple[np.array, Tuple]:
+
         mass_center = np.mean(fish_zone.T[0]).round(), np.mean(fish_zone.T[1]).round()
         centered_bool_frame = np.zeros([2 * half_size, 2 * half_size])
         zone_arr = fish_zone - np.round(np.array(mass_center)).astype(int) + np.array((half_size, half_size)) + shift
         centered_bool_frame[tuple(zone_arr.T)] = 1
-        if not stop:
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-            centered_bool_frame = cv2.morphologyEx(centered_bool_frame, cv2.MORPH_CLOSE, kernel)
-            fish_zone = np.argwhere(centered_bool_frame == 1) - np.array((half_size, half_size)) - shift
-            centered_bool_frame, mass_center_bis = Frame.create_fish_centered_frame(fish_zone,
-                                                                                    half_size=half_size,
-                                                                                    shift=shift,
-                                                                                    stop=True)
-            mass_center = mass_center[0] + mass_center_bis[0], mass_center[1] + mass_center_bis[1]
+
         return centered_bool_frame, mass_center
 
     @classmethod
@@ -174,21 +187,7 @@ class Frame:
                                                        0, 0))).T.astype(int) + np.round(np.array(self.mass_center)).astype(int)
 
         rotated_frame, _ = Frame.create_fish_centered_frame(rotated_zone, half_size=100, shift=(-20, 0))
-        for n in range(2):
-            counts = convolve2d(rotated_frame, np.ones((3, 3)), mode='same')
-            rotated_frame[counts >= 4] = 1
-        # zone = np.argwhere(rotated_frame > 0)
-        # mass_center = np.array(np.mean(zone.T[0]).round(), np.mean(zone.T[1]).round()).astype(int)
-        # new_angle = Frame.calculate_rotation_angle(zone, mass_center)
-        # new_zone = zone - mass_center
-        # new_rotated_zone = np.array(rotate_coords(new_zone.T[0], new_zone.T[1],
-        #                                       new_angle * np.pi / 180,
-        #                                       0, 0)).T.astype(int) + mass_center
-        #
-        # rotated_frame, _ = Frame.create_fish_centered_frame(new_rotated_zone, half_size=100, shift=(-20, 0))
-        # for n in range(2):
-        #     counts = convolve2d(rotated_frame, np.ones((3, 3)), mode='same')
-        #     rotated_frame[counts >= 4] = 1
+
         return rotated_frame, rotated_zone
 
     def plot_frame_processing(self):
