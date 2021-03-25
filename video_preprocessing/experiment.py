@@ -50,7 +50,7 @@ class Video:
         return frames_paths
 
     @classmethod
-    def read_frames(cls, video, start_frame: Optional[int] = None,
+    def read_frames(cls, video: Video, start_frame: Optional[int] = None,
                     end_frame: Optional[int] = None, head_up=True) -> None:
         for n_frame, path in enumerate(video.frames_paths[start_frame:end_frame]):
             frame = Frame(n_frame, path, head_up=head_up)
@@ -63,11 +63,10 @@ class Video:
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
 
         for frame in tqdm(frames, total=len(frames), desc="Image processing "):
-            # frame.boolean_frame = frame.frame < np.quantile(frame.frame, 0.007)
-            # frame.clipped_frame = np.clip(frame.frame, 140, 210)  # instead of 140, 210 for Guillaume
-            # frame.boolean_frame = fish_k_means(frame.clipped_frame)
+            # frame.clipped_frame = np.clip(frame.frame, 140/257, 210/257)  # instead of 140, 210 for Guillaume
 
-            frame.boolean_frame = frame.frame < np.quantile(frame.frame, .009)
+            frame.boolean_frame = frame.frame < np.quantile(frame.frame, .01)
+            # frame.boolean_frame = frame.frame <= 140
 
             frame.fish_zone = np.array(list(Frame.get_fish_zone(frame.boolean_frame)))
             frame.centered_bool_frame, frame.mass_center = Frame.create_fish_centered_frame(frame.fish_zone,
@@ -94,11 +93,17 @@ class Frame:
     def __init__(self, frame_n: int, frame_path: str, head_up: True):
         self.frame_n = frame_n
         self.path = frame_path
-        self.raw_frame = plt.imread(frame_path)
+        if frame_path.split('.')[-1] == 'dat':
+            self.raw_frame = [px for px in open(frame_path)]
+            self.raw_frame = np.array(self.raw_frame).reshape((416, 512)).astype(int)
+        else:
+            self.raw_frame = plt.imread(frame_path)
         if not head_up:
             self.raw_frame = np.flipud(self.raw_frame)
-        self.frame = Frame.hist_adjust(Frame.image_standardisation(self.raw_frame))
+        # self.frame = Frame.hist_adjust(Frame.image_standardisation(self.raw_frame))
         # self.frame = Frame.hist_adjust(self.raw_frame)
+        self.frame = self.raw_frame
+
         self.previous_angle = None
         self.clipped_frame = np.array([])
         self.boolean_frame = np.array([])
