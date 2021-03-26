@@ -9,6 +9,7 @@ from scipy.signal import convolve2d
 from tqdm import tqdm
 from video_preprocessing.utils import fish_k_means, rotate_coords
 import cv2
+import math
 sys.setrecursionlimit(512*416*2)
 
 
@@ -63,22 +64,26 @@ class Video:
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
 
         for frame in tqdm(frames, total=len(frames), desc="Image processing "):
-            frame.clipped_frame = np.clip(frame.frame, 140/257, 210/257)  # instead of 140, 210 for Guillaume
+            # frame.clipped_frame = np.clip(frame.frame, 140/257, 210/257)  # instead of 140, 210 for Guillaume
+            #
+            # frame.boolean_frame = frame.frame <= np.quantile(frame.frame, .01)
+            # # frame.boolean_frame = frame.frame <= 140
+            #
+            # frame.fish_zone = np.array(list(Frame.get_fish_zone(frame.boolean_frame)))
+            #
+            # raw_fish_image = np.zeros([416, 512])
+            # raw_fish_image[tuple(frame.fish_zone.T)] = 1
+            # closed_fish_image = cv2.morphologyEx(raw_fish_image, cv2.MORPH_CLOSE, kernel)
+            #
+            #
+            # frame.fish_zone = np.argwhere(closed_fish_image == 1)
+            #
+            # frame.centered_bool_frame, frame.mass_center = Frame.create_fish_centered_frame(frame.fish_zone,
+            #                                                                                 half_size=150)
+            frame.centered_bool_frame = np.uint8(frame.raw_frame)
 
-            frame.boolean_frame = frame.frame <= np.quantile(frame.frame, .01)
-            # frame.boolean_frame = frame.frame <= 140
-
-            frame.fish_zone = np.array(list(Frame.get_fish_zone(frame.boolean_frame)))
-
-            raw_fish_image = np.zeros([416, 512])
-            raw_fish_image[tuple(frame.fish_zone.T)] = 1
-            closed_fish_image = cv2.morphologyEx(raw_fish_image, cv2.MORPH_CLOSE, kernel)
-
-
-            frame.fish_zone = np.argwhere(closed_fish_image == 1)
-
-            frame.centered_bool_frame, frame.mass_center = Frame.create_fish_centered_frame(frame.fish_zone,
-                                                                                            half_size=150)
+            frame.fish_zone = np.argwhere(frame.centered_bool_frame == 1)
+            frame.mass_center = (np.mean(frame.fish_zone.T[0]), np.mean(frame.fish_zone.T[1]))
 
             if frame.frame_n > 0:
                 frame.centered_bool_frame = cv2.morphologyEx(frame.centered_bool_frame, cv2.MORPH_CLOSE, kernel)
@@ -115,7 +120,7 @@ class Frame:
         self.path = frame_path
         if frame_path.split('.')[-1] == 'dat':
             self.raw_frame = [px for px in open(frame_path)]
-            self.raw_frame = np.array(self.raw_frame).reshape((416, 512)).astype(int)
+            self.raw_frame = np.array(self.raw_frame).reshape((300, 300)).astype(int)
         else:
             self.raw_frame = plt.imread(frame_path)
         if not head_up:
@@ -165,19 +170,45 @@ class Frame:
 
         return centered_bool_frame, mass_center
 
+    # @classmethod
+    # def calculate_rotation_angle(cls, fish_zone, mass_center) -> float:
+    #     norm_fish_zone = np.array(list(fish_zone)) - np.round(np.array(mass_center)).astype(int)
+    #     # for every n point in fish, calculate angle between the (n, mass_center) straight line and the vertical line
+    #     angles = np.arctan2(norm_fish_zone.T[0], norm_fish_zone.T[1] + 1E-12)
+    #     angles = list()
+    #     dist_list = list()
+    #     for pixel in norm_fish_zone:
+    #         angles.append(math.atan2(pixel[0], pixel[1] +1E-12))
+    #         dist_list.append(np.linalg.norm(pixel))
+    #     dist_arr = np.array(dist_list)
+    #
+    #     print('\n', dist_arr.sum())
+    #     weighted_angles = dist_arr * angles
+    #     print(weighted_angles.sum())
+    #
+    #     # for x,y in zip(norm_fish_zone.T[0], norm_fish_zone.T[1]):
+    #
+    #     return np.sum(weighted_angles) / dist_arr.sum() * 180 / np.pi
+
     @classmethod
     def calculate_rotation_angle(cls, fish_zone, mass_center) -> float:
         norm_fish_zone = np.array(list(fish_zone)) - np.round(np.array(mass_center)).astype(int)
         # for every n point in fish, calculate angle between the (n, mass_center) straight line and the vertical line
-        angles = np.arctan2(norm_fish_zone.T[0], norm_fish_zone.T[1])
-
+        angles = np.arctan2(norm_fish_zone.T[0], norm_fish_zone.T[1] + 1E-12)
+        angles = list()
         dist_list = list()
         for pixel in norm_fish_zone:
+            angles.append(- math.atan(pixel[1]/(pixel[0] + 1E-12)))
             dist_list.append(np.linalg.norm(pixel))
         dist_arr = np.array(dist_list)
-        weighted_angles = dist_arr * angles / dist_arr.sum() * 180 / np.pi
 
-        return sum(weighted_angles)
+        print('\n', dist_arr.sum())
+        weighted_angles = dist_arr * np.round(np.array(angles), 6)
+        print(weighted_angles.sum())
+
+        # for x,y in zip(norm_fish_zone.T[0], norm_fish_zone.T[1]):
+
+        return (np.sum(weighted_angles) - np.pi )/ dist_arr.sum() * 180 / np.pi
 
     def rotate_and_center_frame(self, degrees_angle) -> Tuple[np.array, Set[Tuple[int, int]]]:
 

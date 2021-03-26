@@ -13,10 +13,10 @@ else:
 if os.environ['COMPUTERNAME'] == 'DESKTOP-H65TDGH':
     video_folder_path = r'E:\Documents\OneDrive\Documents\Python_projects\MRGM\Guillaume\test_data\centered'
 else:
-    video_folder_path = r'D:\Users\Théo\Documents\OneDrive\Documents\Python_projects\MRGM\Guillaume\test_data\adjusted'
+    video_folder_path = r'D:\Users\Théo\Documents\OneDrive\Documents\Python_projects\MRGM\Guillaume\test_data\centered'
 
 video = Video(video_folder_path, img_extension='dat')
-Video.read_frames(video, start_frame=0, end_frame=565, head_up=False)
+Video.read_frames(video, start_frame=0, end_frame=1, head_up=False)
 video.angles = Video.process_frames(video.frames)
 # arr = np.array([np.array(range(len(video.angles))), np.array(video.angles)]).T
 # # smoothed = xy_spline_smoothing(arr, 565, 10)
@@ -41,3 +41,25 @@ plt.plot(range(len(surfaces)), surfaces, label='surfaces')
 plt.legend()
 
 plt.show()
+
+guillaume_angles = [alpha for alpha in open(r"D:\Users\Théo\Documents\OneDrive\Documents\Python_projects\MRGM\Guillaume\test_data\Angles_000001.dat")]
+frame = video.frames[0]
+
+fish_zone = np.argwhere(frame.centered_bool_frame == 1)
+mass_center = (np.mean(fish_zone.T[0]), np.mean(fish_zone.T[1]))
+
+norm_fish_zone = np.array(list(fish_zone)) - np.round(np.array(mass_center)).astype(int)
+# for every n point in fish, calculate angle between the (n, mass_center) straight line and the vertical line
+angles = np.arctan(- norm_fish_zone.T[1] / (norm_fish_zone.T[0] + 1E-12))
+# angles = list()
+dist_list = list()
+for pixel in norm_fish_zone:
+    # angles.append(- math.atan(pixel[1]/(pixel[0] + 1E-12)))
+    dist_list.append(np.linalg.norm(pixel))
+dist_arr = np.array(dist_list)
+
+print('\n', dist_arr.sum())
+weighted_angles = dist_arr * angles
+print(weighted_angles.sum())
+
+print(np.sum(weighted_angles) / dist_arr.sum() * 180 / np.pi)
