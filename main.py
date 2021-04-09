@@ -41,7 +41,7 @@ plt.show()
 delta_delta_angles = np.array(delta_angles)[1:] - np.array(delta_angles)[:-1]
 
 plt.plot(range(len(delta_delta_angles)), delta_delta_angles, label=f'Delta delta angles {np.std(delta_angles)}')
-plt.hlines(np.std(delta_angles), 0, len(delta_angles), label=f'STD', color='red', ls='-')
-plt.hlines(-np.std(delta_angles), 0, len(delta_angles), color='red', ls='-')
+plt.hlines(np.std(delta_delta_angles), 0, len(delta_delta_angles), label=f'STD', color='red', ls='-')
+plt.hlines(-np.std(delta_delta_angles), 0, len(delta_delta_angles), color='red', ls='-')
 plt.legend()
 plt.show()
