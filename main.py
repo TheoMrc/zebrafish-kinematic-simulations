@@ -25,6 +25,7 @@ plt.show()
 surfaces = np.array([len(frame.fish_zone) for frame in video.frames])
 plt.plot(range(len(surfaces)), surfaces, label='surfaces')
 plt.legend()
+plt.show()
 
 delta_angles = np.array(video.angles)[1:] - np.array(video.angles)[:-1]
 smoothed_delta_angles = gaussian_filter1d(delta_angles, sigma=1)
@@ -36,9 +37,6 @@ plt.plot(range(len(delta_smoothed_angles)), delta_smoothed_angles, label='Delta 
 plt.legend()
 plt.show()
 
-
-
-plt.show()
 
 delta_delta_angles = np.array(delta_angles)[1:] - np.array(delta_angles)[:-1]
 
