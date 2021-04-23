@@ -7,7 +7,7 @@ from typing import List, Tuple, Set, Optional
 from itertools import product
 from scipy.signal import convolve2d
 from tqdm import tqdm
-from video_preprocessing.utils import fish_k_means, rotate_coords
+from video_preprocessing.utils import rotate_coords
 import cv2
 import math
 sys.setrecursionlimit(512*416*2)
@@ -35,6 +35,7 @@ def add_to_zone(x: int, y: int, zone: Set[Tuple[int, int]], bool_array: np.array
             add_to_zone(x + offset_x, y + offset_y, zone, bool_array, seen_pixels)
 
 
+# noinspection PyTypeChecker
 class Video:
     def __init__(self, video_path: str, img_extension: str = 'tif'):
         self.path = video_path
@@ -42,6 +43,7 @@ class Video:
 
         self.frames = list()
         self.angles = list()
+        self.smoothed_angles = list()
 
     @classmethod
     def load_frames_paths(cls, video_path: str, img_extension: str = 'tif') -> List[str]:
@@ -64,10 +66,8 @@ class Video:
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
 
         for frame in tqdm(frames, total=len(frames), desc="Image processing "):
-            # frame.clipped_frame = np.clip(frame.frame, 140/257, 210/257)  # instead of 140, 210 for Guillaume
 
             frame.boolean_frame = frame.frame <= np.quantile(frame.frame, .01)
-            # frame.boolean_frame = frame.frame <= 140
 
             frame.fish_zone = np.array(list(Frame.get_fish_zone(frame.boolean_frame)))
 
@@ -75,13 +75,11 @@ class Video:
             raw_fish_image[tuple(frame.fish_zone.T)] = 1
             closed_fish_image = cv2.morphologyEx(raw_fish_image, cv2.MORPH_CLOSE, kernel)
 
-
             frame.fish_zone = np.argwhere(closed_fish_image == 1)
 
             frame.centered_bool_frame, frame.mass_center = Frame.create_fish_centered_frame(frame.fish_zone,
                                                                                             half_size=150)
-            # frame.centered_bool_frame = np.uint8(frame.raw_frame)
-
+            frame.raw_centered_bool_frame = frame.centered_bool_frame.copy()
             frame.fish_zone = np.argwhere(frame.centered_bool_frame == 1)
             frame.mass_center = (150, 150)
 
@@ -110,9 +108,9 @@ class Video:
                 frame.angle_to_vertical += frames[frame.frame_n - 1].angle_to_vertical
             frame.rotated_bool_frame = cv2.morphologyEx(frame.rotated_bool_frame, cv2.MORPH_CLOSE, kernel)
 
-            # frame.plot_final_frame()
             angles.append(frame.angle_to_vertical)
         return angles
+
 
 class Frame:
     def __init__(self, frame_n: int, frame_path: str, head_up: True):
@@ -132,6 +130,8 @@ class Frame:
         self.previous_angle = None
         self.clipped_frame = np.array([])
         self.boolean_frame = np.array([])
+        self.raw_centered_bool_frame = np.array([])
+
         self.centered_bool_frame = np.array([])
         self.rotated_bool_frame = np.array([])
         self.fish_zone = set()
