@@ -9,8 +9,13 @@ import matplotlib
 print(matplotlib.get_backend())
 if os.environ['COMPUTERNAME'] == 'DESKTOP-H65TDGH':
     video_folder_path = r'E:\Documents\OneDrive\Documents\Python_projects\MRGM\Guillaume\film18_10000_40cm'
+    target_path = r'E:\Documents\OneDrive\Documents\Python_projects\MRGM\Guillaume\film18_10000_40cm\pyth_results'
+    os.makedirs(target_path, exist_ok=True)
+
 else:
     video_folder_path = r'D:\Users\Théo\Documents\OneDrive\Documents\Python_projects\MRGM\Guillaume\film18_10000_40cm'
+    target_path = r'D:\Users\Théo\Documents\OneDrive\Documents\Python_projects\MRGM\Guillaume\film18_10000_40cm\pyth_results'
+    os.makedirs(target_path, exist_ok=True)
 
 video = Video(video_folder_path, img_extension='tif')
 Video.read_frames(video, start_frame=0, end_frame=565, head_up=False)
@@ -31,8 +36,8 @@ for widget in app.frames[StartPage].winfo_children():
 
 app.mainloop()
 
-matplotlib.use('agg')
+# matplotlib.use('Qt5Agg')
+#
+# plt.figure('Final Plot', figsize=(10, 10))
 
-plt.plot(range(len(video.angles)), video.angles)
-plt.plot(range(len(video.smoothed_angles)), video.smoothed_angles)
-plt.show()
+Video.process_frames_from_smoothed_angle(video.frames, video.smoothed_angles, target_path=target_path, save_frames=True)

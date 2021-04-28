@@ -111,6 +111,23 @@ class Video:
             angles.append(frame.angle_to_vertical)
         return angles
 
+    @classmethod
+    def process_frames_from_smoothed_angle(cls, frames: List[Frame], smoothed_angles: List[float],
+                                           target_path: Optional[str], save_frames: bool = True):
+
+        for frame, angle in tqdm(zip(frames, smoothed_angles), total=len(frames),
+                                 desc="Rotating images with smoothed angles"):
+            frame.fish_zone = np.argwhere(frame.raw_centered_bool_frame != 0)
+            frame.mass_center = (150, 150)
+            frame.rotated_bool_frame, frame.fish_zone = frame.rotate_and_center_frame(angle)
+            for n in range(2):
+                counts = convolve2d(frame.rotated_bool_frame, np.ones((3, 3)), mode='same')
+                frame.rotated_bool_frame[counts >= 4] = 1
+
+            if save_frames:
+                np.savetxt(os.path.join(target_path, f'frame_{frame.frame_n:05}.dat'),
+                           frame.rotated_bool_frame, delimiter=',', fmt="%5i")
+
 
 class Frame:
     def __init__(self, frame_n: int, frame_path: str, head_up: True):
@@ -123,8 +140,6 @@ class Frame:
             self.raw_frame = plt.imread(frame_path)
         if not head_up:
             self.raw_frame = np.flipud(self.raw_frame)
-        # self.frame = Frame.hist_adjust(Frame.image_standardisation(self.raw_frame))
-        # self.frame = Frame.hist_adjust(self.raw_frame)
         self.frame = self.raw_frame
 
         self.previous_angle = None
