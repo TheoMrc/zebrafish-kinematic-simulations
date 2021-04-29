@@ -36,6 +36,10 @@ class SmoothingApp(tk.Tk):
         frame = self.frames[cont]
         frame.tkraise()
 
+    def kill_app(self):
+        self.destroy()
+        self.quit()
+
 
 class PopUpConfirmQuit(tk.Toplevel):
     """A TopLevel popup that asks for confirmation that the user wants to quit.
@@ -51,7 +55,7 @@ class PopUpConfirmQuit(tk.Toplevel):
         l2 = ttk.Label(self, text="Validate smoothing parameters ?")
         l2.grid(row=0, column=1, columnspan=3, pady=(7, 10), sticky="w")
 
-        b1 = ttk.Button(self, text="Yes", command=root.quit, width=10)
+        b1 = ttk.Button(self, text="Yes", command=root.kill_app, width=10)
         b1.grid(row=1, column=1, padx=(2, 35), sticky="e")
         b2 = ttk.Button(self, text="No", command=self.destroy, width=10)
         b2.grid(row=1, column=2, padx=(2, 35), sticky="e")
@@ -108,7 +112,7 @@ class StartPage(tk.Frame):
         canvas.get_tk_widget().pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
         toolbar = NavigationToolbar2Tk(canvas, self)
         toolbar.update()
-        canvas.tkcanvas.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        canvas._tkcanvas.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
 
 def update_graph(video, excluded_data, gaussian_sigma: float, spl_smoothing_factor: float, ax, canvas):

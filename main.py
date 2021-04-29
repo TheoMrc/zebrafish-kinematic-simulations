@@ -36,8 +36,4 @@ for widget in app.frames[StartPage].winfo_children():
 
 app.mainloop()
 
-# matplotlib.use('Qt5Agg')
-#
-# plt.figure('Final Plot', figsize=(10, 10))
-
 Video.process_frames_from_smoothed_angle(video.frames, video.smoothed_angles, target_path=target_path, save_frames=True)
