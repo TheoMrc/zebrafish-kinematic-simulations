@@ -55,7 +55,9 @@ class Video:
     @classmethod
     def read_frames(cls, video: Video, start_frame: Optional[int] = None,
                     end_frame: Optional[int] = None, head_up=True) -> None:
-        for n_frame, path in enumerate(video.frames_paths[start_frame:end_frame]):
+        for n_frame, path in tqdm(enumerate(video.frames_paths[start_frame:end_frame]),
+                                  total=len(video.frames_paths[start_frame:end_frame]),
+                                  desc='Reading frames'):
             frame = Frame(n_frame, path, head_up=head_up)
             video.frames.append(frame)
         print(f'\n{len(video.frames)} frames loaded')
