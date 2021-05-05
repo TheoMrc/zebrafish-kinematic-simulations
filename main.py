@@ -14,7 +14,10 @@ if os.environ['COMPUTERNAME'] == 'DESKTOP-H65TDGH':
 
 else:
     video_folder_path = r'D:\Users\Théo\Documents\OneDrive\Documents\Python_projects\MRGM\Guillaume\film18_10000_40cm'
-    target_path = r'D:\Users\Théo\Documents\OneDrive\Documents\Python_projects\MRGM\Guillaume\film18_10000_40cm\pyth_results'
+    target_path = r'D:\Users\Théo\Documents\OneDrive\Documents\Python_projects\MRGM\
+    Guillaume\film18_10000_40cm\pyth_results'
+    # video_folder_path = r'X:\SAUVEGARDE\Théo\2020_12_09 DMSO CPO film simu 3-9% Dex\CPO_150_nM_3percent_fish_1_1'
+    # target_path = r'V:\Sauvegarde\Theo\Modelisation data\CPO_150_nM_3percent_fish_1_1'
     os.makedirs(target_path, exist_ok=True)
 
 video = Video(video_folder_path, img_extension='tif')
@@ -30,7 +33,7 @@ plt.show()
 matplotlib.use("TkAgg")
 app = SmoothingApp(video)
 for widget in app.frames[StartPage].winfo_children():
-    if isinstance(widget, ttk.Button):
+    if widget['text'] == 'Update':
         app.bind('<Return>', lambda e: widget.invoke())
         break
 
