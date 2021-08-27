@@ -210,6 +210,7 @@ class Frame:
                                                        degrees_angle * np.pi / 180,
                                                        0, 0))).T.astype(int) + np.round(np.array(self.mass_center)).astype(int)
 
+        # rotated_frame, _ = Frame.create_fish_centered_frame(rotated_zone, half_size=100, shift=(-20, 0))
         rotated_frame, _ = Frame.create_fish_centered_frame(rotated_zone, half_size=100, shift=(-20, 0))
 
         return rotated_frame, rotated_zone

@@ -1,4 +1,5 @@
 import os
+import sys
 import matplotlib.pyplot as plt
 import numpy as np
 from video_preprocessing.experiment import Video
@@ -11,17 +12,25 @@ if os.environ['COMPUTERNAME'] == 'DESKTOP-H65TDGH':
     video_folder_path = r'E:\Documents\OneDrive\Documents\Python_projects\MRGM\Guillaume\film18_10000_40cm'
     target_path = r'E:\Documents\OneDrive\Documents\Python_projects\MRGM\Guillaume\film18_10000_40cm\pyth_results'
     os.makedirs(target_path, exist_ok=True)
+    print(video_folder_path, '\n', target_path)
 
-else:
-    video_folder_path = r'D:\Users\Théo\Documents\OneDrive\Documents\Python_projects\MRGM\Guillaume\film18_10000_40cm'
-    target_path = r'D:\Users\Théo\Documents\OneDrive\Documents\Python_projects\MRGM\
-    Guillaume\film18_10000_40cm\pyth_results'
+
+elif os.environ['COMPUTERNAME'] == 'PC-STAGIARES-2':
+    video_folder_path = r"X:\SAUVEGARDE\Théo\2021_08_23 DMSO DZP Dex\DZP_50_µM_4"
+    target_path = os.path.join(r"V:\Sauvegarde\Theo\Modelisation data", video_folder_path.split(os.path.sep)[-1])
+
     # video_folder_path = r'X:\SAUVEGARDE\Théo\2020_12_09 DMSO CPO film simu 3-9% Dex\CPO_150_nM_3percent_fish_1_1'
     # target_path = r'V:\Sauvegarde\Theo\Modelisation data\CPO_150_nM_3percent_fish_1_1'
     os.makedirs(target_path, exist_ok=True)
 
+    print(video_folder_path, '\n', target_path)
+
+else:
+    sys.exit()
+
 video = Video(video_folder_path, img_extension='tif')
-Video.read_frames(video, start_frame=0, end_frame=565, head_up=False)
+Video.read_frames(video, start_frame=200, end_frame=1000, head_up=True)
+
 video.angles = Video.process_frames(video.frames)
 
 

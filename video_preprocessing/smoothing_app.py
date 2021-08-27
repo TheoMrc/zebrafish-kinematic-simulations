@@ -119,6 +119,7 @@ def update_graph(video, excluded_data, gaussian_sigma: float, spl_smoothing_fact
     (all_xs, raw_cumul_angle, smoothed_cumul_angle, raw_delta_angles,
      smoothed_delta_angles) = smooth_data_to_plot(video, excluded_data, gaussian_sigma, spl_smoothing_factor)
 
+    print('gaussian_sigma =', gaussian_sigma, '- spl_smoothing_factor =', spl_smoothing_factor)
     ax[0].clear()
     ax[1].clear()
 
