@@ -22,3 +22,17 @@ def xy_spline_smoothing(data_array: np.ndarray, number_of_points: int, smoothing
 
     smoothed_points = splev(new_points_repartition, tck)
     return np.array(smoothed_points).T
+
+
+def calculate_distance_history(mass_centers):
+    distance_history = list()
+    for frame_n in range(len(mass_centers) - 1):
+        frame_distance = distance_between_tuples(mass_centers[frame_n], mass_centers[frame_n + 1])
+        distance_history.append(frame_distance)
+    return np.cumsum(distance_history)
+
+
+def distance_between_tuples(pos1, pos2):
+    x1, y1 = pos1
+    x2, y2 = pos2
+    return ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5

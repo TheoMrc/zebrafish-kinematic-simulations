@@ -43,6 +43,7 @@ class Video:
 
         self.frames = list()
         self.angles = list()
+        self.mass_centers = list()
         self.smoothed_angles = list()
 
     @classmethod
@@ -54,17 +55,18 @@ class Video:
 
     @classmethod
     def read_frames(cls, video: Video, start_frame: Optional[int] = None,
-                    end_frame: Optional[int] = None, head_up=True) -> None:
+                    end_frame: Optional[int] = None, head_up=True, rot90: int = 0) -> None:
         for n_frame, path in tqdm(enumerate(video.frames_paths[start_frame:end_frame]),
                                   total=len(video.frames_paths[start_frame:end_frame]),
                                   desc='Reading frames'):
-            frame = Frame(n_frame, path, head_up=head_up)
+            frame = Frame(n_frame, path, head_up=head_up, rot90=rot90)
             video.frames.append(frame)
         print(f'\n{len(video.frames)} frames loaded')
 
     @classmethod
-    def process_frames(cls, frames: List[Frame]) -> List[float]:
+    def process_frames(cls, frames: List[Frame], final_shift: tuple = (-20, 0)) -> List[float]:
         angles = list()
+        mass_centers = list()
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
 
         for frame in tqdm(frames, total=len(frames), desc="Image processing "):
@@ -73,7 +75,7 @@ class Video:
 
             frame.fish_zone = np.array(list(Frame.get_fish_zone(frame.boolean_frame)))
 
-            raw_fish_image = np.zeros([416, 512])
+            raw_fish_image = np.zeros(frame.boolean_frame.shape)
             raw_fish_image[tuple(frame.fish_zone.T)] = 1
             closed_fish_image = cv2.morphologyEx(raw_fish_image, cv2.MORPH_CLOSE, kernel)
 
@@ -81,6 +83,7 @@ class Video:
 
             frame.centered_bool_frame, frame.mass_center = Frame.create_fish_centered_frame(frame.fish_zone,
                                                                                             half_size=150)
+            mass_centers.append(frame.mass_center)
             frame.raw_centered_bool_frame = frame.centered_bool_frame.copy()
             frame.fish_zone = np.argwhere(frame.centered_bool_frame == 1)
             frame.mass_center = (150, 150)
@@ -88,7 +91,7 @@ class Video:
             if frame.frame_n > 0:
                 frame.centered_bool_frame = cv2.morphologyEx(frame.centered_bool_frame, cv2.MORPH_CLOSE, kernel)
                 frame.centered_bool_frame, frame.fish_zone = frame.rotate_and_center_frame(
-                    frames[frame.frame_n - 1].angle_to_vertical)
+                    frames[frame.frame_n - 1].angle_to_vertical, shift=final_shift)
 
                 frame.centered_bool_frame = cv2.morphologyEx(frame.centered_bool_frame, cv2.MORPH_CLOSE, kernel)
                 frame.fish_zone = np.argwhere(frame.centered_bool_frame == 1)
@@ -97,7 +100,8 @@ class Video:
                                                                      (np.mean(frame.fish_zone.T[0]),
                                                                       np.mean(frame.fish_zone.T[1])))
 
-            frame.rotated_bool_frame, frame.fish_zone = frame.rotate_and_center_frame(frame.angle_to_vertical)
+            frame.rotated_bool_frame, frame.fish_zone = frame.rotate_and_center_frame(frame.angle_to_vertical,
+                                                                                      shift=final_shift)
 
             if frame.frame_n > 0:
                 frame.rotated_bool_frame = cv2.morphologyEx(frame.rotated_bool_frame, cv2.MORPH_CLOSE, kernel)
@@ -111,28 +115,29 @@ class Video:
             frame.rotated_bool_frame = cv2.morphologyEx(frame.rotated_bool_frame, cv2.MORPH_CLOSE, kernel)
 
             angles.append(frame.angle_to_vertical)
-        return angles
+        return angles, mass_centers
 
     @classmethod
     def process_frames_from_smoothed_angle(cls, frames: List[Frame], smoothed_angles: List[float],
-                                           target_path: Optional[str], save_frames: bool = True):
+                                           target_path: Optional[str], save_frames: bool = True,
+                                           final_shift: tuple = (-20, 0)):
 
         for frame, angle in tqdm(zip(frames, smoothed_angles), total=len(frames),
                                  desc="Rotating images with smoothed angles"):
             frame.fish_zone = np.argwhere(frame.raw_centered_bool_frame != 0)
             frame.mass_center = (150, 150)
-            frame.rotated_bool_frame, frame.fish_zone = frame.rotate_and_center_frame(angle)
+            frame.rotated_bool_frame, frame.fish_zone = frame.rotate_and_center_frame(angle, shift=final_shift)
             for n in range(2):
                 counts = convolve2d(frame.rotated_bool_frame, np.ones((3, 3)), mode='same')
                 frame.rotated_bool_frame[counts >= 4] = 1
 
             if save_frames:
                 np.savetxt(os.path.join(target_path, f'frame_{frame.frame_n:05}.dat'),
-                           frame.rotated_bool_frame, delimiter=',', fmt="%5i")
+                           frame.rotated_bool_frame, delimiter='\n', newline='\n', fmt='% 0d')
 
 
 class Frame:
-    def __init__(self, frame_n: int, frame_path: str, head_up: True):
+    def __init__(self, frame_n: int, frame_path: str, head_up: bool = True, rot90: int = 0):
         self.frame_n = frame_n
         self.path = frame_path
         if frame_path.split('.')[-1] == 'dat':
@@ -142,6 +147,8 @@ class Frame:
             self.raw_frame = plt.imread(frame_path)
         if not head_up:
             self.raw_frame = np.flipud(self.raw_frame)
+        if rot90 != 0:
+            self.raw_frame = np.rot90(self.raw_frame, rot90)
         self.frame = self.raw_frame
 
         self.previous_angle = None
@@ -156,11 +163,11 @@ class Frame:
         self.angle_to_vertical = float()
 
     @classmethod
-    def hist_adjust(cls, frame: np.array, gamma: float = 1):
+    def custom_hist_adjust(cls, frame: np.array, gamma: float = 1):
         x, a, b, c, d = frame, frame.min(), frame.max(), 0, 255
 
         y = (((x - a) / (b - a)) ** gamma) * (d - c) + c
-        return y.astype(float)
+        return y.astype(np.uint8)
 
     @classmethod
     def image_standardisation(cls, frame):
@@ -203,15 +210,14 @@ class Frame:
 
         return np.sum(weighted_angles) / dist_arr.sum() * 180 / np.pi
 
-    def rotate_and_center_frame(self, degrees_angle) -> Tuple[np.array, Set[Tuple[int, int]]]:
+    def rotate_and_center_frame(self, degrees_angle, shift: tuple = (-20, 0)) -> Tuple[np.array, Set[Tuple[int, int]]]:
 
         normalized_zone = np.array(list(self.fish_zone)) - np.round(np.array(self.mass_center)).astype(int)
         rotated_zone = np.round(np.array(rotate_coords(normalized_zone.T[0], normalized_zone.T[1],
                                                        degrees_angle * np.pi / 180,
                                                        0, 0))).T.astype(int) + np.round(np.array(self.mass_center)).astype(int)
 
-        # rotated_frame, _ = Frame.create_fish_centered_frame(rotated_zone, half_size=100, shift=(-20, 0))
-        rotated_frame, _ = Frame.create_fish_centered_frame(rotated_zone, half_size=100, shift=(-20, 0))
+        rotated_frame, _ = Frame.create_fish_centered_frame(rotated_zone, half_size=100, shift=shift)
 
         return rotated_frame, rotated_zone
 
