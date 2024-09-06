@@ -19,5 +19,17 @@ To set up the project, follow these steps:
     ```
 4. Run the `main.py` script after adapting the path to source and target folders.
 
-## Example of processing
+## Method
 
+The main script of this project is `main.py`, which uses the `Video` and `Frame` classes from `video_preprocessing/experiment.py` to process and analyze video frames of zebrafish larvae.
+
+The `Video` class is used to load and process video frames. It has methods to read frames from a video file and process these frames. The processing involves calculating the angles and mass centers of the zebrafish in each frame.
+
+The `Frame` class represents an individual frame from the video. It contains methods to perform operations on the frame, such as identifying the zebrafish zone and adding to it based on the size of the dark object on a thresholded frame.
+
+The `main.py` script initializes a `Video` object and reads frames from a video file. It then processes these frames to calculate the angles and mass centers of the zebrafish. The script also calculates the history of distances travelled by the mass center and surfaces of segmented fish, and saves these data to files. Finally, it uses a smoothing application to smooth the angles of rotation and processes the frames based on the smoothed angles (substraction of rotation and translation motions), before saving those to a non destructive format for further processing in other custom software.
+
+## Example of processing
+Example of two frames processed can be seen below:
+<img src="./Example_frame_0.jpg" alt="Example Frame 0" width="50%">
+<img src="./Example_frame_1.jpg" alt="Example Frame 1" width="50%">
