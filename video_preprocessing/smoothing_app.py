@@ -46,6 +46,7 @@ class PopUpConfirmQuit(tk.Toplevel):
     Upon confirmation, the App is destroyed.
     If not, the popup closes and no further action is taken
     """
+
     def __init__(self, root, video, smoothed_angles):
         super().__init__(root)
         self.title("Quit")
@@ -67,8 +68,11 @@ class StartPage(tk.Frame):
         tk.Frame.__init__(self, parent)
         label = tk.Label(self, text="Angle graph smoothing", font=("Calibri", 12))
         label.pack(pady=10, padx=10)
-        validate_button = ttk.Button(self, text="Validate Settings",
-                                     command=lambda: PopUpConfirmQuit(controller, video, smoothed_cumul_angle))
+        validate_button = ttk.Button(
+            self,
+            text="Validate Settings",
+            command=lambda: PopUpConfirmQuit(controller, video, smoothed_cumul_angle),
+        )
         validate_button.pack(side=tk.BOTTOM, pady=5)
         E2 = ttk.Entry(self)
         E2.insert(0, str(31))
@@ -78,34 +82,44 @@ class StartPage(tk.Frame):
 
         E1 = ttk.Entry(self)
         E1.pack(side=tk.BOTTOM, pady=2)
-        E1.insert(0, str(.5))
+        E1.insert(0, str(0.5))
         label1 = tk.Label(self, text="Gaussian filtering sigma")
         label1.pack(side=tk.BOTTOM, padx=10)
 
         E3 = ttk.Entry(self)
-        E3.insert(0, '200 , 250')
+        E3.insert(0, "200 , 250")
         E3.pack(side=tk.BOTTOM, pady=2)
         label1 = tk.Label(self, text="Coma separated exclusion zones limits")
         label1.pack(side=tk.BOTTOM, padx=10)
 
-        button1 = ttk.Button(self, text="Update",
-                             command=lambda: update_graph(video, E3.get(), E1.get(), E2.get(), ax, canvas))
+        button1 = ttk.Button(
+            self,
+            text="Update",
+            command=lambda: update_graph(
+                video, E3.get(), E1.get(), E2.get(), ax, canvas
+            ),
+        )
         button1.pack(side=tk.BOTTOM)
-        (all_xs, raw_cumul_angle, smoothed_cumul_angle, raw_delta_angles,
-         smoothed_delta_angles) = smooth_data_to_plot(video, E3.get(), E1.get(), E2.get())
+        (
+            all_xs,
+            raw_cumul_angle,
+            smoothed_cumul_angle,
+            raw_delta_angles,
+            smoothed_delta_angles,
+        ) = smooth_data_to_plot(video, E3.get(), E1.get(), E2.get())
 
         fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(14, 7))
         ax = axes.ravel()
 
-        ax[0].plot(all_xs, raw_cumul_angle, alpha=.7, label='Raw')
-        ax[0].plot(all_xs, smoothed_cumul_angle, alpha=.7, label='Smoothed')
+        ax[0].plot(all_xs, raw_cumul_angle, alpha=0.7, label="Raw")
+        ax[0].plot(all_xs, smoothed_cumul_angle, alpha=0.7, label="Smoothed")
         ax[0].legend()
-        ax[0].set_title('Cumulative rotation angle = f(t)')
+        ax[0].set_title("Cumulative rotation angle = f(t)")
 
-        ax[1].plot(all_xs, raw_delta_angles, alpha=.7, label='Raw')
-        ax[1].plot(all_xs, smoothed_delta_angles, alpha=.7, label='Smoothed')
+        ax[1].plot(all_xs, raw_delta_angles, alpha=0.7, label="Raw")
+        ax[1].plot(all_xs, smoothed_delta_angles, alpha=0.7, label="Smoothed")
         ax[1].legend()
-        ax[1].set_title('Delta rotation angle = f(t)')
+        ax[1].set_title("Delta rotation angle = f(t)")
 
         canvas = FigureCanvasTkAgg(fig, self)
         canvas.draw()
@@ -115,38 +129,59 @@ class StartPage(tk.Frame):
         canvas._tkcanvas.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
 
-def update_graph(video, excluded_data, gaussian_sigma: float, spl_smoothing_factor: float, ax, canvas):
-    (all_xs, raw_cumul_angle, smoothed_cumul_angle, raw_delta_angles,
-     smoothed_delta_angles) = smooth_data_to_plot(video, excluded_data, gaussian_sigma, spl_smoothing_factor)
+def update_graph(
+    video, excluded_data, gaussian_sigma: float, spl_smoothing_factor: float, ax, canvas
+):
+    (
+        all_xs,
+        raw_cumul_angle,
+        smoothed_cumul_angle,
+        raw_delta_angles,
+        smoothed_delta_angles,
+    ) = smooth_data_to_plot(video, excluded_data, gaussian_sigma, spl_smoothing_factor)
 
-    print('excluded_data =', excluded_data)
+    print("excluded_data =", excluded_data)
 
-    print('gaussian_sigma =', gaussian_sigma, '- spl_smoothing_factor =', spl_smoothing_factor)
+    print(
+        "gaussian_sigma =",
+        gaussian_sigma,
+        "- spl_smoothing_factor =",
+        spl_smoothing_factor,
+    )
     ax[0].clear()
     ax[1].clear()
 
-    ax[0].plot(all_xs, raw_cumul_angle, alpha=.7, label='Raw')
-    ax[0].plot(all_xs, smoothed_cumul_angle, alpha=.7, label='Smoothed')
+    ax[0].plot(all_xs, raw_cumul_angle, alpha=0.7, label="Raw")
+    ax[0].plot(all_xs, smoothed_cumul_angle, alpha=0.7, label="Smoothed")
     ax[0].legend()
-    ax[0].set_title('Cumulative rotation angle = f(t)')
+    ax[0].set_title("Cumulative rotation angle = f(t)")
 
-    ax[1].plot(all_xs, raw_delta_angles, alpha=.7, label='Raw')
-    ax[1].plot(all_xs, smoothed_delta_angles, alpha=.7, label='Smoothed')
+    ax[1].plot(all_xs, raw_delta_angles, alpha=0.7, label="Raw")
+    ax[1].plot(all_xs, smoothed_delta_angles, alpha=0.7, label="Smoothed")
     ax[1].legend()
-    ax[1].set_title('Delta rotation angle = f(t)')
+    ax[1].set_title("Delta rotation angle = f(t)")
     canvas.draw()
 
 
-def smooth_data_to_plot(video, excluded_data: str, gaussian_sigma: float, spl_smoothing_factor: float, ):
-    raw_delta_angles = (np.array(video.angles)[1:] - np.array(video.angles)[:-1]).astype(np.float64)
-    gaussian_delta_angles = gaussian_filter1d(raw_delta_angles, sigma=float(gaussian_sigma))
+def smooth_data_to_plot(
+    video,
+    excluded_data: str,
+    gaussian_sigma: float,
+    spl_smoothing_factor: float,
+):
+    raw_delta_angles = (
+        np.array(video.angles)[1:] - np.array(video.angles)[:-1]
+    ).astype(np.float64)
+    gaussian_delta_angles = gaussian_filter1d(
+        raw_delta_angles, sigma=float(gaussian_sigma)
+    )
 
     all_xs = range(len(gaussian_delta_angles))
 
     truncated_delta_angles = gaussian_delta_angles.copy()
 
-    if len(excluded_data.split(',')) >= 2:
-        excluded_data = list(map(int, excluded_data.split(',')))
+    if len(excluded_data.split(",")) >= 2:
+        excluded_data = list(map(int, excluded_data.split(",")))
         for lim, next_lim in zip(excluded_data[::2], excluded_data[1::2]):
             truncated_delta_angles[lim:next_lim] = np.nan
 
@@ -158,6 +193,13 @@ def smooth_data_to_plot(video, excluded_data: str, gaussian_sigma: float, spl_sm
 
     raw_cumul_angle = np.cumsum(raw_delta_angles)
     smoothed_cumul_angle = np.cumsum(smoothing_spl(all_xs))
-    video.smoothed_angles = np.concatenate((np.array([video.angles[0]]),
-                                            smoothed_cumul_angle + video.angles[0])).astype(np.float64)
-    return all_xs, raw_cumul_angle, smoothed_cumul_angle, raw_delta_angles, smoothing_spl(all_xs)
+    video.smoothed_angles = np.concatenate(
+        (np.array([video.angles[0]]), smoothed_cumul_angle + video.angles[0])
+    ).astype(np.float64)
+    return (
+        all_xs,
+        raw_cumul_angle,
+        smoothed_cumul_angle,
+        raw_delta_angles,
+        smoothing_spl(all_xs),
+    )

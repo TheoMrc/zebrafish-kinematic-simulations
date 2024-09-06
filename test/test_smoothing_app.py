@@ -13,18 +13,22 @@ def test_dir_path() -> str:
     yield pathlib.Path(__file__).parent.absolute()
 
 
-@pytest.fixture(name='angles')
+@pytest.fixture(name="angles")
 def load_test_angles(test_dir_path):
-    with open(os.path.join(test_dir_path, 'test_experiment',
-                           'test_data', 'angles_test_data.json'), 'r') as data_file:
+    with open(
+        os.path.join(
+            test_dir_path, "test_experiment", "test_data", "angles_test_data.json"
+        ),
+        "r",
+    ) as data_file:
         angles = json.load(data_file)
         yield angles
 
 
-@pytest.fixture(name='video')
+@pytest.fixture(name="video")
 def create_video_object(test_dir_path, angles):
-    video_path = os.path.join(test_dir_path, 'test_experiment', 'test_video')
-    video = Video(video_path, 'tif')
+    video_path = os.path.join(test_dir_path, "test_experiment", "test_video")
+    video = Video(video_path, "tif")
     video.angles = angles
     yield video
 
@@ -34,8 +38,8 @@ def test_app(video):
     app = SmoothingApp(video)
 
     for widget in app.frames[StartPage].winfo_children():
-        if widget['text'] == 'Update':
-            app.bind('<Return>', lambda e: widget.invoke())
+        if widget["text"] == "Update":
+            app.bind("<Return>", lambda e: widget.invoke())
             break
 
     app.mainloop()
