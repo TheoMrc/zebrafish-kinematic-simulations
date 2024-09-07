@@ -31,5 +31,7 @@ The `main.py` script initializes a `Video` object and reads frames from a video 
 
 ## Example of processing
 Example of two frames processed can be seen below:
+
+
 <img src="./Example_frame_0.jpg" alt="Example Frame 0" width="50%">
 <img src="./Example_frame_1.jpg" alt="Example Frame 1" width="50%">
