@@ -1,0 +1,97 @@
+diff --git a/video_preprocessing/experiment.py b/video_preprocessing/experiment.py
+index e69de29..e69de29 100644
+--- a/video_preprocessing/experiment.py
++++ b/video_preprocessing/experiment.py
+@@ class Video:
+     @classmethod
+     def process_frames_from_smoothed_angle(
+         cls,
+         frames: List[Frame],
+         smoothed_angles: List[float],
+         target_path: Optional[str],
+         save_frames: bool = True,
+         final_shift: tuple = (-20, 0),
+         *,
+         hdf5_path: Optional[str] = None,
+         meta: Optional[dict] = None,
+     ) -> None:
+
+         """
+         Rotate already centered binary frames according to a list of smoothed angles and
+         optionally export the entire sequence to a single HDF5 file.  When
+         ``hdf5_path`` is provided, all rotated frames, angles and mass centers are
+         accumulated during the loop and written to the file at the end.  The
+         ``meta`` dictionary can be used to store additional metadata (e.g. fps,
+         px_per_mm) as attributes in the ``/meta`` group of the HDF5 file.
+         """
+
+         # prepare containers for optional HDF5 export
+         rotated_frames_list: List[np.ndarray] = []
+         angles_out: List[float] = []
+         mass_centers_out: List[Tuple[int, int]] = []
+
+         for frame, angle in tqdm(
+             zip(frames, smoothed_angles),
+             total=len(frames),
+             desc="Rotating images with smoothed angles",
+         ):
+             frame.fish_zone = np.argwhere(frame.raw_centered_bool_frame != 0)
+             frame.mass_center = (150, 150)
+             frame.rotated_bool_frame, frame.fish_zone = frame.rotate_and_center_frame(
+                 angle, shift=final_shift
+             )
+
+             for n in range(2):
+                 counts = convolve2d(
+                     frame.rotated_bool_frame, np.ones((3, 3)), mode="same"
+                 )
+                 frame.rotated_bool_frame[counts >= 4] = 1
+
+             if save_frames:
+                 np.savetxt(
+                     os.path.join(target_path, f"frame_{frame.frame_n:05}.dat"),
+                     frame.rotated_bool_frame,
+                     delimiter="\n",
+                     newline="\n",
+                     fmt="% 0d",
+                 )
+
+             # Collect data for HDF5 export
+             if hdf5_path is not None:
+                 rotated_frames_list.append(frame.rotated_bool_frame.astype(np.uint8))
+                 angles_out.append(angle)
+                 mass_centers_out.append(frame.mass_center)
+
+         # At the end of the loop, write all collected data to HDF5 if requested
+         if hdf5_path is not None:
+             import h5py
+             import numpy as np
+             os.makedirs(os.path.dirname(hdf5_path), exist_ok=True)
+             with h5py.File(hdf5_path, "w") as h5f:
+                 masks = np.stack(rotated_frames_list, axis=0)
+                 h5f.create_dataset("masks", data=masks, compression="gzip")
+                 h5f.create_dataset("rigid/angle", data=np.array(angles_out, dtype=float))
+                 h5f.create_dataset("mass_center", data=np.array(mass_centers_out, dtype=float))
+                 # write meta attributes if provided
+                 meta_grp = h5f.create_group("meta")
+                 if meta:
+                     for k, v in meta.items():
+                         meta_grp.attrs[k] = v
+
+diff --git a/main.py b/main.py
+index e69de29..e69de29 100644
+--- a/main.py
++++ b/main.py
+@@
+     # Export the processed frames both as individual .dat files and a consolidated
+     # HDF5 file for downstream analysis.  The HDF5 file will contain the
+     # rotated binary masks as well as the smoothed angles and mass centres.
+     Video.process_frames_from_smoothed_angle(
+         video.frames,
+         video.smoothed_angles,
+         final_shift=shift,
+         target_path=target_path,
+         save_frames=True,
+         hdf5_path=os.path.join(target_path, "aligned.h5"),
+         meta=None,  # optionally pass {'fps': ..., 'px_per_mm': ..., 'fish_length_mm': ...}
+     )

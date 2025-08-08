@@ -1,20 +1,24 @@
 from __future__ import annotations
-import sys
+
+import math
 import os
-import numpy as np
-import matplotlib.pyplot as plt
-from typing import List, Tuple, Set, Optional
+import sys
 from itertools import product
+from typing import List, Optional, Set, Tuple
+
+import cv2
+import h5py
+import matplotlib.pyplot as plt
+import numpy as np
 from scipy.signal import convolve2d
 from tqdm import tqdm
+
 from video_preprocessing.utils import rotate_coords
-import cv2
-import math
 
 sys.setrecursionlimit(512 * 416 * 2)
 
 
-def get_zones(bool_array: np.array) -> List[Set[Tuple[int, int]]]:
+def get_zones(bool_array: np.ndarray) -> List[Set[Tuple[int, int]]]:
     seen_pixels = set()
     zones = list()
     for x, y in product(*map(range, bool_array.shape)):
@@ -29,7 +33,7 @@ def add_to_zone(
     x: int,
     y: int,
     zone: Set[Tuple[int, int]],
-    bool_array: np.array,
+    bool_array: np.ndarray,
     seen_pixels: Set[Tuple[int, int]],
 ) -> None:
     seen_pixels.add((x, y))
@@ -89,13 +93,12 @@ class Video:
     @classmethod
     def process_frames(
         cls, frames: List[Frame], final_shift: tuple = (-20, 0)
-    ) -> List[float]:
+    ) -> Tuple[List[float], List[Tuple[int, int]]]:
         angles = list()
         mass_centers = list()
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
 
         for frame in tqdm(frames, total=len(frames), desc="Image processing "):
-
             frame.boolean_frame = frame.frame <= np.quantile(
                 frame.frame, 0.01
             )  # Mimics MatLab's histadjust that saturates 1% of pixels
@@ -170,7 +173,23 @@ class Video:
         target_path: Optional[str],
         save_frames: bool = True,
         final_shift: tuple = (-20, 0),
-    ):
+        *,
+        hdf5_path: Optional[str] = None,
+        meta: Optional[dict] = None,
+    ) -> None:
+        """
+        Rotate already centered binary frames according to a list of smoothed angles and
+        optionally export the entire sequence to a single HDF5 file.  When
+        ``hdf5_path`` is provided, all rotated frames, angles and mass centers are
+        accumulated during the loop and written to the file at the end.  The
+        ``meta`` dictionary can be used to store additional metadata (e.g. fps,
+        px_per_mm) as attributes in the ``/meta`` group of the HDF5 file.
+        """
+
+        # prepare containers for optional HDF5 export
+        rotated_frames_list: List[np.ndarray] = []
+        angles_out: List[float] = []
+        mass_centers_out: List[Tuple[int, int]] = []
 
         for frame, angle in tqdm(
             zip(frames, smoothed_angles),
@@ -196,6 +215,29 @@ class Video:
                     newline="\n",
                     fmt="% 0d",
                 )
+            # Collect data for HDF5 export
+            if hdf5_path is not None:
+                rotated_frames_list.append(frame.rotated_bool_frame.astype(np.uint8))
+                angles_out.append(angle)
+                mass_centers_out.append(frame.mass_center)
+
+        # At the end of the loop, write all collected data to HDF5 if requested
+        if hdf5_path is not None:
+            os.makedirs(os.path.dirname(hdf5_path), exist_ok=True)
+            with h5py.File(hdf5_path, "w") as h5f:
+                masks = np.stack(rotated_frames_list, axis=0)
+                h5f.create_dataset("masks", data=masks, compression="gzip")
+                h5f.create_dataset(
+                    "rigid/angle", data=np.array(angles_out, dtype=float)
+                )
+                h5f.create_dataset(
+                    "mass_center", data=np.array(mass_centers_out, dtype=float)
+                )
+                # write meta attributes if provided
+                meta_grp = h5f.create_group("meta")
+                if meta:
+                    for k, v in meta.items():
+                        meta_grp.attrs[k] = v
 
 
 class Frame:
@@ -227,7 +269,7 @@ class Frame:
         self.angle_to_vertical = float()
 
     @classmethod
-    def custom_hist_adjust(cls, frame: np.array, gamma: float = 1):
+    def custom_hist_adjust(cls, frame: np.ndarray, gamma: float = 1):
         x, a, b, c, d = frame, frame.min(), frame.max(), 0, 255
 
         y = (((x - a) / (b - a)) ** gamma) * (d - c) + c
@@ -238,11 +280,11 @@ class Frame:
         return frame - np.array([np.mean(frame)]) / np.array([np.std(frame)])
 
     @classmethod
-    def rgb2gray(cls, frame: np.array):
+    def rgb2gray(cls, frame: np.ndarray):
         return np.dot(frame[..., :3], [0.2989, 0.5870, 0.1140])
 
     @classmethod
-    def get_fish_zone(cls, boolean_frame: np.array) -> Set[Tuple[int, int]]:
+    def get_fish_zone(cls, boolean_frame: np.ndarray) -> Set[Tuple[int, int]]:
         zones = get_zones(boolean_frame)
         fish_zone = set(max(zones, key=len))
         return fish_zone
@@ -250,8 +292,7 @@ class Frame:
     @classmethod
     def create_fish_centered_frame(
         cls, fish_zone: np.ndarray, half_size: int = 150, shift: Tuple = (0, 0)
-    ) -> Tuple[np.array, Tuple]:
-
+    ) -> Tuple[np.ndarray, Tuple]:
         mass_center = np.mean(fish_zone.T[0]).round(), np.mean(fish_zone.T[1]).round()
         centered_bool_frame = np.zeros([2 * half_size, 2 * half_size])
         zone_arr = (
@@ -282,8 +323,7 @@ class Frame:
 
     def rotate_and_center_frame(
         self, degrees_angle, shift: tuple = (-20, 0)
-    ) -> Tuple[np.array, Set[Tuple[int, int]]]:
-
+    ) -> Tuple[np.ndarray, Set[Tuple[int, int]]]:
         normalized_zone = np.array(list(self.fish_zone)) - np.round(
             np.array(self.mass_center)
         ).astype(int)
@@ -339,7 +379,7 @@ class Frame:
 
 
 def refine_fish_zone(
-    frame: np.array, fish_zone: Set[Tuple[int, int]]
+    frame: np.ndarray, fish_zone: Set[Tuple[int, int]]
 ) -> Set[Tuple[int, int]]:
     for x, y in list(fish_zone):
         add_to_fish_zone(x, y, fish_zone, frame)
@@ -347,7 +387,7 @@ def refine_fish_zone(
 
 
 def add_to_fish_zone(
-    x: int, y: int, fish_zone: Set[Tuple[int, int]], frame: np.array
+    x: int, y: int, fish_zone: Set[Tuple[int, int]], frame: np.ndarray
 ) -> None:
     offsets = zip([1, -1, 0, 0, 1, 1, -1, -1], [0, 0, 1, -1, 1, -1, 1, -1])
 

@@ -1,7 +1,0 @@
-# Recommended python 3.10.x
-pytest==7.1.3
-matplotlib
-numpy
-scipy
-tqdm
-opencv-python

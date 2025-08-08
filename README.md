@@ -1,37 +1,115 @@
-# Zebrafish Procrustes Analysis
+# Enhanced Zebrafish Procrustes Analysis
 
-This repository contains Python code for the segmentation of zebrafish larvae shapes as a pre-processing to the reconstruction of a 3D model of the larvae bending over time with translations and rotations subtracted, during an escape response triggered by an electrical stimuli.
+This project provides tools for analyzing zebrafish movement using Procrustes analysis on video data. It includes enhanced functionality to collect all rotated binary frames and kinematic data into a single HDF5 file for easier data processing and analysis.
 
-## Project Structure
+## Features
 
-The main code is located in the `video_preprocessing/experiment.py` file. This file contains two classes: `Video` and `Frame`, which are used to process and analyze video frames.
-Currently the processing is executed from the main.py in the project's root folder.
+- Video preprocessing and frame analysis
+- Procrustes analysis for zebrafish movement
+- HDF5 export for consolidated data storage
+- GUI-based smoothing application
+- Automated testing and code quality tools
 
-## Setup
+## Installation
 
-To set up the project, follow these steps:
+This project uses modern Python packaging. Install it in development mode:
 
-1. Clone the repository to your local machine.
-2. Create a clean venv with python 3.10.x
-3. Install the required Python packages using pip:
-    ```
-    pip install -r requirements.txt
-    ```
-4. Run the `main.py` script after adapting the path to source and target folders.
+```bash
+pip install -e .
+```
 
-## Method
+Or install with additional development dependencies:
 
-The main script of this project is `main.py`, which uses the `Video` and `Frame` classes from `video_preprocessing/experiment.py` to process and analyze video frames of zebrafish larvae.
+```bash
+pip install -e ".[test,format,lint]"
+```
 
-The `Video` class is used to load and process video frames. It has methods to read frames from a video file and process these frames. The processing involves calculating the angles and mass centers of the zebrafish in each frame.
+## Development Tools
 
-The `Frame` class represents an individual frame from the video. It contains methods to perform operations on the frame, such as identifying the zebrafish zone and adding to it based on the size of the dark object on a thresholded frame.
+This project includes several development utilities:
 
-The `main.py` script initializes a `Video` object and reads frames from a video file. It then processes these frames to calculate the angles and mass centers of the zebrafish. The script also calculates the history of distances travelled by the mass center and surfaces of segmented fish, and saves these data to files. Finally, it uses a smoothing application to smooth the angles of rotation and processes the frames based on the smoothed angles (substraction of rotation and translation motions), before saving those to a non destructive format for further processing in other custom software.
+### Code Formatting and Linting
 
-## Example of processing
-Example of two frames processed can be seen below:
+Format and lint the code:
 
+```bash
+tox -e format
+```
 
-<img src="./Example_frame_0.jpg" alt="Example Frame 0" width="50%">
-<img src="./Example_frame_1.jpg" alt="Example Frame 1" width="50%">
+Check formatting and linting without making changes:
+
+```bash
+tox -e lint
+```
+
+### Testing
+
+Run tests:
+
+```bash
+pytest
+```
+
+## Usage
+
+Run the main analysis:
+
+```bash
+python main.py
+```
+
+Or use the console script (after installation):
+
+```bash
+zebrafish-analysis
+```
+
+## Contents
+
+* **patch.diff** – A unified diff showing the changes to the original
+  ``video_preprocessing/experiment.py`` and ``main.py``.  It introduces
+  optional parameters to ``process_frames_from_smoothed_angle`` to accumulate
+  rotated frames and write them to an HDF5 file alongside the smoothed angles
+  and mass centres.  In ``main.py`` the call to this method is amended to
+  provide an ``aligned.h5`` path.
+* **export_hdf5.py** – A standalone script for converting the existing
+  ``.dat`` outputs (``frame_*.dat`` and the kinematics data in
+  ``kinematics_data``) into a consolidated HDF5 file.  This is useful if you
+  do not want to modify the original code but still need the HDF5 format.
+
+## Applying the patch
+
+To apply the patch to your local clone of
+``TheoMrc/zebrafish-procrustes-analysis``, run:
+
+```bash
+git apply path/to/enhanced_procrustes_analysis/patch.diff
+```
+
+This will update ``video_preprocessing/experiment.py`` and ``main.py`` to
+include HDF5 export support.  After applying the patch, the pipeline will
+write ``aligned.h5`` into the target directory alongside the ``.dat`` files.
+
+Alternatively, you can keep your current code unchanged and run
+``export_hdf5.py`` after processing to bundle the results:
+
+```bash
+python export_hdf5.py --input-folder test/tmp_results/test_video --output test/tmp_results/test_video/aligned.h5
+```
+
+## HDF5 format
+
+The produced HDF5 file has the following structure:
+
+```
+/masks               (n_frames, 300, 300) uint8 – aligned binary masks
+/rigid/angle         (n_frames,) float    – smoothed rotation angles
+/mass_center         (n_frames, 2) float  – mass centre positions
+/distance            (n_frames,) float    – cumulative travel distance (optional)
+/surface             (n_frames,) float    – segmented surface area (optional)
+/meta                group with attributes such as fps, px_per_mm, fish_length_mm
+```
+
+This layout matches the expectations of the new zebrafish deformation repo,
+which reads the masks and rigid motion parameters from a single file and
+computes midlines, curvature and widths.

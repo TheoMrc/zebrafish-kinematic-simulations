@@ -1,17 +1,16 @@
-import numpy as np
-from scipy.ndimage import gaussian_filter1d
-from scipy.interpolate import UnivariateSpline
-
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-import matplotlib.pyplot as plt
 import tkinter as tk
 from tkinter import ttk
+
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+from scipy.interpolate import UnivariateSpline
+from scipy.ndimage import gaussian_filter1d
 
 from video_preprocessing.experiment import Video
 
 
 class SmoothingApp(tk.Tk):
-
     def __init__(self, video: Video, *args, **kwargs):
         tk.Tk.__init__(self, *args, **kwargs)
 
@@ -50,7 +49,7 @@ class PopUpConfirmQuit(tk.Toplevel):
     def __init__(self, root, video, smoothed_angles):
         super().__init__(root)
         self.title("Quit")
-        self.geometry(f"300x90+810+490")
+        self.geometry("300x90+810+490")
         l1 = ttk.Label(self, image="::tk::icons::question")
         l1.grid(row=0, column=0, pady=(7, 0), padx=(10, 30), sticky="e")
         l2 = ttk.Label(self, text="Validate smoothing parameters ?")
@@ -63,7 +62,6 @@ class PopUpConfirmQuit(tk.Toplevel):
 
 
 class StartPage(tk.Frame):
-
     def __init__(self, parent, controller, video):
         tk.Frame.__init__(self, parent)
         label = tk.Label(self, text="Angle graph smoothing", font=("Calibri", 12))
@@ -96,7 +94,7 @@ class StartPage(tk.Frame):
             self,
             text="Update",
             command=lambda: update_graph(
-                video, E3.get(), E1.get(), E2.get(), ax, canvas
+                video, E3.get(), float(E1.get()), float(E2.get()), ax, canvas
             ),
         )
         button1.pack(side=tk.BOTTOM)
@@ -106,7 +104,7 @@ class StartPage(tk.Frame):
             smoothed_cumul_angle,
             raw_delta_angles,
             smoothed_delta_angles,
-        ) = smooth_data_to_plot(video, E3.get(), E1.get(), E2.get())
+        ) = smooth_data_to_plot(video, E3.get(), float(E1.get()), float(E2.get()))
 
         fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(14, 7))
         ax = axes.ravel()
@@ -181,11 +179,11 @@ def smooth_data_to_plot(
     truncated_delta_angles = gaussian_delta_angles.copy()
 
     if len(excluded_data.split(",")) >= 2:
-        excluded_data = list(map(int, excluded_data.split(",")))
-        for lim, next_lim in zip(excluded_data[::2], excluded_data[1::2]):
+        excluded_ranges = list(map(int, excluded_data.split(",")))
+        for lim, next_lim in zip(excluded_ranges[::2], excluded_ranges[1::2]):
             truncated_delta_angles[lim:next_lim] = np.nan
 
-    truncated_x_values = np.argwhere(~np.isnan(truncated_delta_angles))
+    truncated_x_values = np.argwhere(~np.isnan(truncated_delta_angles)).ravel()
     truncated_delta_angles = truncated_delta_angles[~np.isnan(truncated_delta_angles)]
 
     smoothing_spl = UnivariateSpline(truncated_x_values, truncated_delta_angles)

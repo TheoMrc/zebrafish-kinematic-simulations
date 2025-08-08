@@ -1,5 +1,3 @@
-from collections import defaultdict
-
 video_config_dict = {
     "test_video": {"head_up": False, "rot90": 0, "shift": (-20, 0)},
     "DMSO_1": {"head_up": True, "rot90": 0, "shift": (-20, 0)},

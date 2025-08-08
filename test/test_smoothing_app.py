@@ -2,7 +2,8 @@ import pytest
 import os
 import pathlib
 import matplotlib
-from video_preprocessing.smoothing_app import SmoothingApp, StartPage
+import tkinter as tk
+from video_preprocessing.smoothing_app import SmoothingApp, StartPage, smooth_data_to_plot
 from video_preprocessing.experiment import Video
 import numpy as np
 import json
@@ -33,16 +34,24 @@ def create_video_object(test_dir_path, angles):
     yield video
 
 
-def test_app(video):
-    matplotlib.use("TkAgg")
+def test_app_validates_instantly(video):
+    # Use headless backend
+    matplotlib.use("Agg")
+
+    # Create the app window but prevent it from showing and blockless-close it
     app = SmoothingApp(video)
+    app.withdraw()  # do not show a real window in CI
 
-    for widget in app.frames[StartPage].winfo_children():
-        if widget["text"] == "Update":
-            app.bind("<Return>", lambda e: widget.invoke())
-            break
+    # Compute smoothing immediately so the app does not rely on user input
+    xs, raw_cumul, smoothed_cumul, raw_delta, smoothed_delta = smooth_data_to_plot(
+        video, excluded_data="", gaussian_sigma=0.5, spl_smoothing_factor=10.0
+    )
+    assert len(list(xs)) == len(video.angles) - 1
+    assert len(smoothed_delta) == len(video.angles) - 1
 
-    app.mainloop()
-    assert video.smoothed_angles.any()
-    print(video.angles)
-    print(video.smoothed_angles)
+    # Immediately destroy the window to avoid hanging mainloop
+    app.kill_app()
+    # After destruction, tkinter raises TclError on winfo calls
+    import pytest
+    with pytest.raises(tk.TclError):
+        _ = app.winfo_exists()

@@ -1,6 +1,7 @@
-import numpy as np
-from scipy.interpolate import splprep, splev
 from itertools import groupby
+
+import numpy as np
+from scipy.interpolate import splev, splprep
 
 
 def rotate_coords(x, y, theta, ox, oy):
